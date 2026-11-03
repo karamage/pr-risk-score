@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🛡️ pr-risk-score
+<img src=".claude-plugin/icon.png" alt="" width="96">
+
+# pr-risk-score
 
 **退屈なPRはAIに任せて、人間は危ないPRだけ見る。**
 
@@ -10,6 +12,9 @@ PRのURLを渡すと、**0〜100の危険度スコア**とレベル、そして�
 [English](README.md) · [スコアリングモデル](skills/pr-risk-score/references/scoring-model.md) · [設定](skills/pr-risk-score/references/configuration.md)
 
 </div>
+
+<p align="center"><img src="docs/demo.gif" alt="pr-risk-score のデモ" width="860"></p>
+<p align="center"><sub>実際の判定結果です。<a href="https://github.com/supabase/auth/pull/2887">supabase/auth#2887</a> は基本点32から人間のレビューへエスカレーション（60点）、<a href="https://github.com/cli/cli/pull/14907">cli/cli#14907</a> は6点でAIレビューで十分という判定です。</sub></p>
 
 ---
 

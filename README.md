@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🛡️ pr-risk-score
+<img src=".claude-plugin/icon.png" alt="" width="96">
+
+# pr-risk-score
 
 **Let AI review the boring PRs. Send humans only the risky ones.**
 
@@ -19,25 +21,8 @@ Paste a PR URL and get a **0–100 risk score**, a level, and a clear decision:<
 
 ---
 
-<sub>Illustrative output (Claude Code, skill mode):</sub>
-
-```text
-> /pr-risk-score https://github.com/acme/api/pull/482
-
-## 🔴 PR Risk Score: 81/100 — CRITICAL
-Decision: 👀 Human review required (threshold 50)
-Drops `users.legacy_email` in a migration and loosens the admin check in the same PR.
-
-| Layer                     | Points | Evidence                                                        |
-|---------------------------|-------:|-----------------------------------------------------------------|
-| Baseline (deterministic)  |     69 | migrations (+18), auth (+20), DROP COLUMN, 412 lines, no tests  |
-| Semantic adjustment       |    +12 | `app/policies/admin.rb:31` — `||` turned an AND into an OR      |
-| Floors / policy           |   ≥ 75 | destructive database migration                                  |
-
-If a human reviews, focus on:
-- `db/migrate/20261101_drop_legacy_email.rb:4` — is anything still reading legacy_email?
-- `app/policies/admin.rb:31` — confirm support staff aren't meant to become admins.
-```
+<p align="center"><img src="docs/demo.gif" alt="pr-risk-score demo: an auth PR escalated to human review, a dependency bump left to AI review" width="860"></p>
+<p align="center"><sub>Real runs: <a href="https://github.com/supabase/auth/pull/2887">supabase/auth#2887</a> (baseline 32 → escalated to 60, human review) and <a href="https://github.com/cli/cli/pull/14907">cli/cli#14907</a> (6, AI review is enough).</sub></p>
 
 ## Why
 
