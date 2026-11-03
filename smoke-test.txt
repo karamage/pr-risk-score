@@ -1,0 +1,1 @@
+smoke test for the pr-risk-score action (this PR will be closed)
