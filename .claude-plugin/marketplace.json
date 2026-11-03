@@ -1,0 +1,17 @@
+{
+  "name": "pr-risk-score",
+  "owner": { "name": "karamage", "url": "https://github.com/karamage" },
+  "metadata": {
+    "description": "Risk-score pull requests so humans only review the ones that matter.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "pr-risk-score",
+      "description": "Score any pull request 0-100 for risk and decide whether a human must review it.",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/pr-risk-score"]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# Dogfooding: this repo scores its own pull requests with the action from the BASE branch.
+name: pr-risk-score
+on:
+  pull_request_target:          # safe: checks out the base branch only; PR code is never run
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4   # base branch (the default for pull_request_target)
+        with:
+          persist-credentials: false
+      - uses: ./

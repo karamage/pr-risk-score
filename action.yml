@@ -1,0 +1,142 @@
+name: "PR Risk Score"
+description: "Score every pull request 0-100 for risk, label it, and decide whether a human must review it. Deterministic, explainable, zero dependencies."
+author: "karamage"
+branding:
+  icon: "shield"
+  color: "orange"
+
+inputs:
+  github-token:
+    description: "Token used to read the PR and post comments/labels. Needs pull-requests: write and issues: write for comments/labels."
+    required: false
+    default: ${{ github.token }}
+  pr:
+    description: "PR URL or number. Defaults to the PR that triggered the workflow."
+    required: false
+    default: ${{ github.event.pull_request.html_url }}
+  threshold:
+    description: "Human-review threshold (0-100). Empty = use .pr-risk.json from the base branch, or 50."
+    required: false
+    default: ""
+  comment:
+    description: "Post / update a sticky PR comment with the report."
+    required: false
+    default: "true"
+  labels:
+    description: "Apply risk:low|medium|high|critical and needs-human-review labels."
+    required: false
+    default: "true"
+  fail-on-human-review:
+    description: "Fail the job when human review is required (use with branch protection to block auto-merge)."
+    required: false
+    default: "false"
+  fail-above:
+    description: "Fail the job when the score is >= this value (empty = never)."
+    required: false
+    default: ""
+  semantic-file:
+    description: "Optional path to a semantic review JSON ({items:[{points,file,line,reason,escalation}],summary,focus,skip}), e.g. produced by claude-code-action. Bounds (±20, floors, escalation) are enforced by the script, not the model."
+    required: false
+    default: ""
+  allow-semantic-decrease:
+    description: "Let the semantic review lower the score. Default false in CI: model output influenced by an untrusted PR can only raise risk."
+    required: false
+    default: "false"
+  comment-author:
+    description: "Login that owns the sticky comment. Only comments by this account are updated, so nobody can plant a fake report. Change it if you pass a GitHub App or PAT token."
+    required: false
+    default: "github-actions[bot]"
+
+outputs:
+  score:
+    description: "Risk score 0-100"
+    value: ${{ steps.score.outputs.score }}
+  level:
+    description: "LOW | MEDIUM | HIGH | CRITICAL"
+    value: ${{ steps.score.outputs.level }}
+  needs-human-review:
+    description: "'true' when a human must review"
+    value: ${{ steps.score.outputs.needs_human_review }}
+
+runs:
+  using: "composite"
+  steps:
+    # Security note: this action never checks out or executes the PR's code. It reads the
+    # diff through the GitHub API, so it is safe to run on `pull_request_target`
+    # (needed to comment on PRs from forks). All PR-derived text is sanitized before it is
+    # written into the comment (mentions, links and HTML are neutralized).
+    - id: score
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_REF: ${{ inputs.pr }}
+        THRESHOLD: ${{ inputs.threshold }}
+        SEMANTIC: ${{ inputs.semantic-file }}
+        ALLOW_DECREASE: ${{ inputs.allow-semantic-decrease }}
+        SCRIPT: ${{ github.action_path }}/skills/pr-risk-score/scripts/pr_risk.py
+      run: |
+        set -euo pipefail
+        if [ -z "$PR_REF" ]; then echo "::error::No PR to score (set the 'pr' input or run on pull_request events)"; exit 1; fi
+        args=("$PR_REF")
+        if [ -n "$THRESHOLD" ]; then args+=(--threshold "$THRESHOLD"); fi
+        python3 "$SCRIPT" "${args[@]}" --format json > "$RUNNER_TEMP/pr-risk.json"
+        if [ -n "$SEMANTIC" ]; then
+          sem_args=(--render "$RUNNER_TEMP/pr-risk.json" --semantic "$SEMANTIC" --format json)
+          if [ "$ALLOW_DECREASE" != "true" ]; then sem_args+=(--no-semantic-decrease); fi
+          python3 "$SCRIPT" "${sem_args[@]}" > "$RUNNER_TEMP/pr-risk-final.json"
+          mv "$RUNNER_TEMP/pr-risk-final.json" "$RUNNER_TEMP/pr-risk.json"
+        fi
+        python3 "$SCRIPT" --render "$RUNNER_TEMP/pr-risk.json" > "$RUNNER_TEMP/pr-risk.md"
+        jq -r '"score=\(.score)\nlevel=\(.level)\nneeds_human_review=\(.needs_human_review)"' "$RUNNER_TEMP/pr-risk.json" >> "$GITHUB_OUTPUT"
+        cat "$RUNNER_TEMP/pr-risk.md" >> "$GITHUB_STEP_SUMMARY"
+
+    - if: inputs.comment == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        AUTHOR: ${{ inputs.comment-author }}
+      run: |
+        set -uo pipefail
+        url=$(jq -r '.target.url' "$RUNNER_TEMP/pr-risk.json")
+        repo=$(echo "$url" | sed -E 's#https?://[^/]+/([^/]+/[^/]+)/pull/[0-9]+.*#\1#')
+        num=$(echo "$url" | sed -E 's#.*/pull/([0-9]+).*#\1#')
+        # Only our own comment is updated: anyone can post a comment containing the marker.
+        id=$(gh api "repos/$repo/issues/$num/comments" --paginate \
+          | jq -r --arg a "$AUTHOR" '.[] | select(.user.login == $a and (.body | startswith("<!-- pr-risk-score -->"))) | .id' | head -n1)
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$repo/issues/comments/$id" -F body=@"$RUNNER_TEMP/pr-risk.md" > /dev/null \
+            || echo "::warning::Could not update the comment (token lacks write access? use pull_request_target for forks)"
+        else
+          gh api -X POST "repos/$repo/issues/$num/comments" -F body=@"$RUNNER_TEMP/pr-risk.md" > /dev/null \
+            || echo "::warning::Could not post the comment (token lacks write access? use pull_request_target for forks)"
+        fi
+
+    - if: inputs.labels == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        LEVEL: ${{ steps.score.outputs.level }}
+        HUMAN: ${{ steps.score.outputs.needs_human_review }}
+      run: |
+        set -uo pipefail
+        url=$(jq -r '.target.url' "$RUNNER_TEMP/pr-risk.json")
+        repo=$(echo "$url" | sed -E 's#https?://[^/]+/([^/]+/[^/]+)/pull/[0-9]+.*#\1#')
+        declare -A colors=([low]=2ea043 [medium]=d4a72c [high]=fb8500 [critical]=cf222e)
+        for l in low medium high critical; do gh label create "risk:$l" -R "$repo" --color "${colors[$l]}" --description "pr-risk-score" 2>/dev/null || true; done
+        gh label create needs-human-review -R "$repo" --color 5319e7 --description "pr-risk-score: a human must review" 2>/dev/null || true
+        want="risk:$(echo "$LEVEL" | tr '[:upper:]' '[:lower:]')"
+        remove=$(for l in low medium high critical; do [ "risk:$l" != "$want" ] && printf 'risk:%s,' "$l"; done)
+        if [ "$HUMAN" = "true" ]; then add="$want,needs-human-review"; else add="$want"; remove="${remove}needs-human-review,"; fi
+        gh pr edit "$url" --add-label "$add" --remove-label "${remove%,}" > /dev/null \
+          || echo "::warning::Could not update labels (token lacks write access?)"
+
+    - shell: bash
+      env:
+        SCORE: ${{ steps.score.outputs.score }}
+        HUMAN: ${{ steps.score.outputs.needs_human_review }}
+        FAIL_HUMAN: ${{ inputs.fail-on-human-review }}
+        FAIL_ABOVE: ${{ inputs.fail-above }}
+      run: |
+        if [ "$FAIL_HUMAN" = "true" ] && [ "$HUMAN" = "true" ]; then echo "::error::Risk score $SCORE — human review required"; exit 1; fi
+        if [ -n "$FAIL_ABOVE" ] && [ "$SCORE" -ge "$FAIL_ABOVE" ]; then echo "::error::Risk score $SCORE >= $FAIL_ABOVE"; exit 1; fi
+        echo "Risk score: $SCORE (human review required: $HUMAN)"

@@ -1,0 +1,9 @@
+{
+  "human_review_threshold": 50,
+  "rule_ignore_paths": {
+    "prompt-injection": ["README*.md", "tests/**", "skills/pr-risk-score/references/**", "skills/pr-risk-score/SKILL.md"],
+    "secret-aws-key": ["tests/**"],
+    "secret-github-token": ["tests/**"]
+  },
+  "ignore_paths": []
+}
