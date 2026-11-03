@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — 2026-11-03
+
+### Fixed
+- **Plugin failed to load after `/plugin install`** ("conflicting manifests: both plugin.json and marketplace entry specify components"). The marketplace entry no longer lists components; `plugin.json` is the single source of truth and `skills/` is auto-discovered. If you installed 1.0.0 through the plugin marketplace, run `/plugin marketplace update pr-risk-score`, reinstall the plugin, then `/reload-plugins`.
+
+### Added
+- Plugin icon and a README demo GIF built from real runs.
+
+The GitHub Action, the skills CLI install, and the CLI were not affected.
+
 ## 1.0.0 — 2026-11-03
 
 First release.

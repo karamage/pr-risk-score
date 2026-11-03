@@ -38,7 +38,7 @@ import sys
 import urllib.parse
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 CONFIG_FILENAME = ".pr-risk.json"
 COMMENT_MARKER = "<!-- pr-risk-score -->"
 DEFAULT_THRESHOLD = 50

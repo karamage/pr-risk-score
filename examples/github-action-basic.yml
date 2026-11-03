@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Pin to a full commit SHA for supply-chain safety (tags can be moved):
-      #   uses: karamage/pr-risk-score@<40-char-sha>  # v1.0.0
+      #   uses: karamage/pr-risk-score@<40-char-sha>  # v1.0.1
       - id: risk
         uses: karamage/pr-risk-score@v1
         with:

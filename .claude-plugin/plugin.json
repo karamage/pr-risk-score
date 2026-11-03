@@ -1,6 +1,6 @@
 {
   "name": "pr-risk-score",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Score any pull request 0-100 for risk and decide whether a human must review it. Deterministic, explainable baseline + bounded AI semantic review.",
   "author": {
     "name": "karamage",
